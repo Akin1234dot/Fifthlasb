@@ -1,0 +1,173 @@
+.profile-page {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 30px;
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 139, 0.1);
+    /* Dark blue shadow */
+}
+
+.profile-page h1 {
+    color: #1a237e;
+    /* Dark blue */
+    text-align: center;
+    margin-bottom: 25px;
+    border-bottom: 2px solid #1976d2;
+    /* Medium blue */
+    padding-bottom: 10px;
+}
+
+.profile-page p {
+    color: #333;
+    font-size: 16px;
+    line-height: 1.6;
+    margin: 15px 0;
+    padding: 8px 15px;
+    background-color: #f5f9ff;
+    /* Very light blue */
+    border-left: 4px solid #1976d2;
+    /* Medium blue */
+    border-radius: 0 4px 4px 0;
+}
+
+.profile-page strong {
+    color: #1565c0;
+    /* Slightly darker blue */
+}
+
+.profile-page ul {
+    list-style-type: none;
+    padding: 0;
+    margin: 15px 0;
+}
+
+.profile-page li {
+    padding: 10px 15px;
+    margin: 8px 0;
+    background-color: #e3f2fd;
+    /* Light blue */
+    border-radius: 4px;
+    border-left: 3px solid #0d47a1;
+    /* Dark blue accent */
+}
+
+.profile-page p:last-child {
+    color: #666;
+    font-style: italic;
+    text-align: center;
+    background-color: transparent;
+    border-left: none;
+}  
+/* Upload Progress Circle */
+.upload-progress {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: bold;
+    position: relative;
+}
+
+.upload-progress::before {
+    content: '';
+    position: absolute;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: white;
+}
+
+.upload-progress span {
+    z-index: 1;
+}
+
+/* Profile Picture Upload */
+.profile-pic-upload {
+    position: relative;
+    margin-bottom: 15px;
+    text-align: center;
+}
+
+.large-avatar {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    object-fit: cover;
+    margin: 0 auto 10px;
+    display: block;
+    border: 2px solid #fff;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.change-photo-btn {
+    background: rgba(0, 0, 0, 0.5);
+    color: white;
+    border: none;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.change-photo-btn:hover {
+    background: rgba(0, 0, 0, 0.7);
+}
+/* Message bubbles */
+.message-bubble {
+    max-width: 70%;
+    padding: 10px 15px;
+    border-radius: 18px;
+    margin-bottom: 10px;
+    position: relative;
+}
+
+.message-bubble.sent {
+    background-color: #4285f4;
+    color: white;
+    align-self: flex-end;
+}
+
+.message-bubble.received {
+    background-color: #f1f1f1;
+    color: #333;
+    align-self: flex-start;
+}
+
+.message-time {
+    font-size: 0.75rem;
+    opacity: 0.8;
+    display: block;
+    text-align: right;
+    margin-top: 4px;
+}
+
+/* Typing indicator */
+.typing-indicator {
+    color: #666;
+    font-style: italic;
+    padding: 10px;
+    font-size: 0.9rem;
+}
+
+/* Attachments */
+.message-attachment img {
+    max-width: 200px;
+    max-height: 200px;
+    border-radius: 8px;
+    cursor: pointer;
+    margin-bottom: 8px;
+}
+
+/* Composer improvements */
+.attachment-button {
+    background: none;
+    border: none;
+    font-size: 1.2rem;
+    cursor: pointer;
+    padding: 0 10px;
+}

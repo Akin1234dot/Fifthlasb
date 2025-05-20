@@ -1,0 +1,317 @@
+/* General Sidebar Styles */
+.sidebar {
+  width: 240px;
+  height: 100vh;
+  background-color: #fff;
+  border-right: 1px solid #e9edf5;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  transition: transform 0.3s ease;
+  -webkit-overflow-scrolling: touch;
+  /* Smooth scrolling on iOS */
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: -100%;
+    z-index: 100;
+    width: 280px;
+    max-width: 85vw;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    transition: left 0.3s ease;
+  }
+
+  .sidebar.mobile-open {
+    left: 0;
+  }
+
+  /* Show mobile menu toggle button */
+  .mobile-menu-toggle {
+    display: block !important;
+  }
+}
+
+/* Backdrop for Mobile View */
+.backdrop {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 99;
+}
+
+.backdrop.show {
+  display: block;
+}
+
+/* Close Button */
+.close-sidebar {
+  display: none;
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  width: 30px;
+  height: 30px;
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #4b5563;
+  cursor: pointer;
+  z-index: 10;
+  padding: 0;
+  line-height: 1;
+}
+
+.close-sidebar:hover {
+  color: #1a56db;
+}
+
+@media (max-width: 768px) {
+  .close-sidebar {
+    display: block;
+  }
+}
+
+/* Logo Section */
+.logo-container {
+  padding: 20px 15px;
+  border-bottom: 1px solid #e9edf5;
+}
+
+.app-logo {
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+  font-size: 18px;
+  color: #1a56db;
+}
+
+.logo-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  background-color: #1a56db;
+  border-radius: 6px;
+  margin-right: 10px;
+}
+
+/* Search Bar */
+.search-container {
+  padding: 15px;
+}
+
+.search-input {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #e9edf5;
+  border-radius: 6px;
+  font-size: 14px;
+  background-color: #f7f9fc;
+  outline: none;
+}
+
+/* Navigation Menu */
+.sidebar-menu {
+  display: flex;
+  flex-direction: column;
+  padding: 0 15px;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 10px;
+  border-radius: 6px;
+  margin-bottom: 5px;
+  color: #4b5563;
+  text-decoration: none;
+  transition: background-color 0.2s;
+  min-height: 44px;
+  /* Ensure touch targets are large enough */
+}
+
+.menu-item:hover {
+  background-color: #f7f9fc;
+}
+
+.menu-item.active {
+  background-color: #f0f5ff;
+  color: #1a56db;
+}
+
+.menu-icon {
+  display: flex;
+  align-items: center;
+  margin-right: 10px;
+}
+
+.menu-text {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* Section Headers */
+.section-header {
+  padding: 20px 15px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+/* Channels List */
+.channels-list {
+  padding: 0 15px;
+}
+
+.channel-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 6px;
+  margin-bottom: 3px;
+  cursor: pointer;
+  position: relative;
+  min-height: 44px;
+  /* Ensure touch targets are large enough */
+}
+
+.channel-item:hover {
+  background-color: #f7f9fc;
+}
+
+.channel-item.active {
+  background-color: #f0f5ff;
+}
+
+.channel-prefix {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 8px;
+  font-weight: 500;
+  color: #6b7280;
+}
+
+.channel-name {
+  font-size: 14px;
+  color: #4b5563;
+}
+
+.channel-indicator {
+  width: 8px;
+  height: 8px;
+  background-color: #3b82f6;
+  border-radius: 50%;
+  position: absolute;
+  right: 12px;
+}
+
+/* Team Members List */
+.team-members-list {
+  padding: 0 15px;
+}
+
+.member-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 6px;
+  margin-bottom: 3px;
+  position: relative;
+  min-height: 44px;
+  /* Ensure touch targets are large enough */
+}
+
+.member-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  margin-right: 8px;
+  overflow: hidden;
+}
+
+.member-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.member-name {
+  font-size: 14px;
+  color: #4b5563;
+}
+
+.online-indicator {
+  width: 8px;
+  height: 8px;
+  background-color: #10b981;
+  border-radius: 50%;
+  position: absolute;
+  right: 12px;
+}
+
+/* Mobile Menu Toggle */
+.mobile-menu-toggle {
+  display: none;
+  /* Hidden by default, shown in media query */
+}
+
+/* Responsive Styles */
+@media (max-width: 768px) {
+  .logo-container {
+    padding: 15px;
+    margin-top: 10px;
+    /* Space for close button */
+  }
+
+  .search-container {
+    padding: 10px 15px;
+  }
+
+  .sidebar-menu,
+  .channels-list,
+  .team-members-list {
+    padding: 0 10px;
+  }
+
+  .menu-item {
+    padding: 10px 8px;
+    margin-bottom: 3px;
+  }
+}
+
+@media (max-width: 480px) {
+  .sidebar {
+    width: 100%;
+    max-width: 320px;
+  }
+
+  .menu-item,
+  .channel-item,
+  .member-item {
+    padding: 12px 10px;
+  }
+
+  .menu-text,
+  .channel-name,
+  .member-name {
+    font-size: 14px;
+    /* Keep text readable on mobile */
+  }
+}
+.sidebar-header {
+  background-color: #fff;
+  /* Change to desired color */
+  padding: 20px 15px;
+  border-bottom: 1px solid #e9edf5;
+  display: flex;
+  align-items: center;
+}

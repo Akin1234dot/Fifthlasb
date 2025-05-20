@@ -1,0 +1,87 @@
+/* Main Container */
+.channels-container {
+  padding: 20px;
+  height: 100vh;
+  overflow-y: auto;
+  background-color: #f8f9fa;
+}
+
+/* Channel Controls */
+.channel-controls {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.create-button {
+  background-color: #3b82f6;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.create-button:hover {
+  background-color: #2563eb;
+}
+
+.search-input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+/* Channel List */
+.channel-list {
+  display: grid;
+  gap: 12px;
+}
+
+.channel-card {
+  background-color: white;
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.channel-name {
+  margin: 0 0 8px 0;
+  font-size: 16px;
+  color: #1f2937;
+}
+
+.channel-members {
+  margin: 0;
+  font-size: 14px;
+  color: #6b7280;
+}
+
+.unread-badge {
+  display: inline-block;
+  background-color: #ef4444;
+  color: white;
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  margin-left: 8px;
+}
+
+.join-button {
+  margin-top: 12px;
+  background-color: #e5e7eb;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s;
+}
+
+.join-button:hover {
+  background-color: #d1d5db;
+}

@@ -1,0 +1,122 @@
+.chart-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+  margin: 16px;
+}
+
+.chart-card {
+  background-color: white;
+  padding: 16px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: ce.chart-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 16px;
+    margin: 16px;
+}
+
+.chart-card {
+    background-color: white;
+    padding: 16px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.chart-card h2 {
+    font-size: 18px;
+    font-weight: bold;
+    color: #333333;
+    margin-bottom: 16px;
+}
+@media (max-width: 768px) {
+  .chart-grid {
+      grid-template-columns: 1fr; /* Stack charts vertically */
+  }
+
+  .chart-card {
+      margin-bottom: 16px; /* Add spacing between stacked charts */
+  }
+}
+
+
+.chart-card h2 {
+  font-size: 18px;
+  font-weight: bold;
+  color: #333333;
+  margin-bottom: 16px;
+}
+.chart-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+  margin: 16px;
+}
+
+.chart-card {
+  background-color: white;
+  padding: 16px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.chart-card:hover {
+  transform: scale(1.02);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.chart-card h2 {
+  font-size: 18px;
+  font-weight: bold;
+  color: #333333;
+  margin-bottom: 16px;
+}
+
+.chart-wrapper {
+  position: relative;
+  height: 30vw;
+  min-height: 200px;
+  width: 100%;
+}
+
+@media (max-width: 768px) {
+  .chart-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    margin: 12px;
+  }
+
+  .chart-card {
+    padding: 12px;
+  }
+
+  .chart-wrapper {
+    height: 40vw;
+  }
+
+  .chart-card h2 {
+    font-size: 16px;
+    margin-bottom: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .chart-wrapper {
+    height: 50vw;
+  }
+
+  .chart-card h2 {
+    font-size: 14px;
+    margin-bottom: 10px;
+  }
+}
+

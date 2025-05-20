@@ -1,0 +1,11 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "messages",
+      "fields": [
+        { "fieldPath": "participants", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    }
+  ]
+}
