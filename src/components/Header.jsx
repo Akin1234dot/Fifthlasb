@@ -6,7 +6,7 @@ import {
   signInWithGoogle,
   storage
 } from '../firebase';
-import { useAuthState } from 'react-firebase-hooks/auth';
+import { useAuthState } from 'react-firebase-hooks/auth'; 
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { updateProfile } from 'firebase/auth';
 import './Header.css';

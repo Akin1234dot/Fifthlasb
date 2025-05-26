@@ -24,7 +24,7 @@ const SignupPage = () => {
     let timer;
     if (registrationStatus === 'success') {
       timer = setTimeout(() => {
-        navigate('/dashboard');
+        navigate('/login'); // Changed to redirect to login page instead of dashboard
       }, 2000); // Give the user 2 seconds to see the success message
     }
     return () => clearTimeout(timer);
@@ -89,14 +89,15 @@ const SignupPage = () => {
     }
   };
 
-  // Remind me later functionality to register guest user
+  // Remind me later functionality to register guest user or skip registration
   const remindLater = async () => {
     setIsSubmitting(true);
     setRegistrationStatus('submitting');
 
     try {
-      // Default credentials for guest users
-      const guestEmail = 'guest@example.com';
+      // Generate a unique guest email with timestamp to avoid email-already-in-use errors
+      const timestamp = new Date().getTime();
+      const guestEmail = `guest_${timestamp}@example.com`;
       const guestPassword = 'guestpassword123';
 
       // Firebase Authentication - Register guest user
@@ -121,19 +122,32 @@ const SignupPage = () => {
         accountname: 'Guest Account',
         email: guestEmail,
         teamMembers: [], // No team members for guests
+        isGuest: true, // Mark as guest account
+        createdAt: new Date()
       });
 
       // Update registration status to success
       setRegistrationStatus('success');
       setIsSubmitting(false);
-
-      // Navigate or handle as needed without showing success message immediately
-      navigate('/dashboard');
+      
+      // Show success message
+      alert("Guest account created successfully! You'll be redirected to the login page.");
+      
+      // After a short delay, navigate to login page
+      setTimeout(() => {
+        navigate('/login');
+      }, 1500);
+      
     } catch (error) {
       console.error("Remind later error:", error.message);
-      alert(`Sign-up failed: ${error.message}`);
-      setRegistrationStatus('error');
+      
+      // Even if registration fails, still navigate to login page
+      // This ensures users can still proceed even if account creation fails
       setIsSubmitting(false);
+      
+      // Just navigate to login page anyway
+      alert("Proceeding to login page...");
+      navigate('/login');
     }
   };
 
@@ -148,6 +162,20 @@ const SignupPage = () => {
         return "Try Again";
       default:
         return "Send Invite";
+    }
+  };
+
+  // Render the appropriate button text for "Remind Me Later" based on registration status
+  const renderRemindButtonContent = () => {
+    switch (registrationStatus) {
+      case 'submitting':
+        return <div className="spinner"></div>;
+      case 'success':
+        return "Account Created!";
+      case 'error':
+        return "Try Again";
+      default:
+        return "Remind Me Later";
     }
   };
 
@@ -323,10 +351,11 @@ const SignupPage = () => {
 
             <button 
               type="button" 
-              className="btn text-btn"
+              className={`btn text-btn ${registrationStatus === 'success' ? 'success-btn' : ''}`}
               onClick={remindLater}
+              disabled={isSubmitting || registrationStatus === 'success'}
             >
-              Remind Me Later
+              {renderRemindButtonContent()}
             </button>
           </form>
         </div>
