@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createUserWithEmailAndPassword } from "firebase/auth"; // Firebase Authentication
-import { collection, doc, setDoc } from "firebase/firestore"; // Firestore
-import { auth, db } from "../../firebase"; // Firebase config
+import { createUserWithEmailAndPassword } from "firebase/auth";
+import { collection, doc, setDoc } from "firebase/firestore";
+import { auth, db } from "../../firebase";
 import './Signup.css';
 
 const SignupPage = () => {
@@ -16,7 +16,8 @@ const SignupPage = () => {
   });
   const [teamMembers, setTeamMembers] = useState([{ email: '', role: '' }]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [registrationStatus, setRegistrationStatus] = useState('idle'); // 'idle', 'submitting', 'success', 'error'
+  const [isGuestSubmitting, setIsGuestSubmitting] = useState(false);
+  const [registrationStatus, setRegistrationStatus] = useState('idle');
   const navigate = useNavigate();
 
   // Handle navigation after successful registration
@@ -24,15 +25,36 @@ const SignupPage = () => {
     let timer;
     if (registrationStatus === 'success') {
       timer = setTimeout(() => {
-        navigate('/login'); // Changed to redirect to login page instead of dashboard
-      }, 2000); // Give the user 2 seconds to see the success message
+        navigate('/login');
+      }, 2000);
     }
     return () => clearTimeout(timer);
   }, [registrationStatus, navigate]);
 
+  // Validation function
+  const validateForm = () => {
+    if (!formData.email || !formData.password || !formData.firstname || !formData.lastname) {
+      alert('Please fill in all required fields');
+      return false;
+    }
+    if (formData.password.length < 6) {
+      alert('Password must be at least 6 characters long');
+      return false;
+    }
+    return true;
+  };
+
   // Add team members dynamically
   const addTeamMember = () => {
     setTeamMembers([...teamMembers, { email: '', role: '' }]);
+  };
+
+  // Remove team member
+  const removeTeamMember = (index) => {
+    if (teamMembers.length > 1) {
+      const updatedMembers = teamMembers.filter((_, i) => i !== index);
+      setTeamMembers(updatedMembers);
+    }
   };
 
   // Handle input changes for team members
@@ -48,134 +70,176 @@ const SignupPage = () => {
     setFormData({ ...formData, [id]: value });
   };
 
-  // Form submission logic with Firebase Authentication and Firestore
+  // Main form submission with proper validation
   const submitForm = async () => {
+    // Validate form before submission
+    if (!validateForm()) {
+      return;
+    }
+
     setIsSubmitting(true);
     setRegistrationStatus('submitting');
     
     try {
+      console.log('Submitting form with data:', {
+        email: formData.email,
+        firstname: formData.firstname,
+        lastname: formData.lastname,
+        accountname: formData.accountname
+      });
+
       // Firebase Authentication - Register user
       const userCredential = await createUserWithEmailAndPassword(
         auth,
-        formData.email,
+        formData.email.trim(),
         formData.password
       );
-      const user = userCredential.user; // User object
+      const user = userCredential.user;
 
-      console.log("User successfully registered:", user);
+      console.log("User successfully registered:", user.uid);
 
-      // Save user data to Firestore
-      await setDoc(doc(db, "users", user.uid), {
-        firstname: formData.firstname.trim() || 'Unknown',
-        lastname: formData.lastname.trim() || 'Unknown',
+      // Filter valid team members (both email and role must be provided)
+      const validTeamMembers = teamMembers.filter(member => 
+        member.email.trim() && member.role.trim()
+      );
+
+      // Prepare user data for Firestore
+      const userData = {
+        firstname: formData.firstname.trim(),
+        lastname: formData.lastname.trim(),
         accountname: formData.accountname.trim() || 'Default Account',
         email: formData.email.trim(),
-        teamMembers: teamMembers.filter(member => member.email && member.role),
-      });
+        teamMembers: validTeamMembers,
+        isGuest: false, // Explicitly mark as NOT a guest
+        createdAt: new Date(),
+        uid: user.uid
+      };
+
+      console.log('Saving user data to Firestore:', userData);
+
+      // Save user data to Firestore
+      await setDoc(doc(db, "users", user.uid), userData);
+
+      console.log('User data saved successfully to Firestore');
 
       // Update registration status to success
       setRegistrationStatus('success');
       setIsSubmitting(false);
       
-      // Provide feedback to the user
       alert("Account created successfully!");
       
     } catch (error) {
-      // Handle errors and notify the user
-      console.error("Sign-up error:", error.message);
-      alert(`Sign-up failed: ${error.message}`);
+      console.error("Sign-up error:", error);
+      let errorMessage = "Sign-up failed. Please try again.";
+      
+      // Handle specific Firebase errors
+      if (error.code === 'auth/email-already-in-use') {
+        errorMessage = "This email is already registered. Please use a different email or try logging in.";
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage = "Please enter a valid email address.";
+      } else if (error.code === 'auth/weak-password') {
+        errorMessage = "Password is too weak. Please use a stronger password.";
+      }
+      
+      alert(errorMessage);
       setRegistrationStatus('error');
       setIsSubmitting(false);
     }
   };
 
-  // Remind me later functionality to register guest user or skip registration
-  const remindLater = async () => {
-    setIsSubmitting(true);
-    setRegistrationStatus('submitting');
+  // Remind Me Later - same functionality as main signup
+  const remindMeLater = async () => {
+    // Use the same validation as main form
+    if (!validateForm()) {
+      return;
+    }
 
+    setIsGuestSubmitting(true);
+    
     try {
-      // Generate a unique guest email with timestamp to avoid email-already-in-use errors
-      const timestamp = new Date().getTime();
-      const guestEmail = `guest_${timestamp}@example.com`;
-      const guestPassword = 'guestpassword123';
+      console.log('Remind Me Later - Submitting form with data:', {
+        email: formData.email,
+        firstname: formData.firstname,
+        lastname: formData.lastname,
+        accountname: formData.accountname
+      });
 
-      // Firebase Authentication - Register guest user
+      // Firebase Authentication - Register user with their actual details
       const userCredential = await createUserWithEmailAndPassword(
         auth,
-        guestEmail,
-        guestPassword
+        formData.email.trim(),
+        formData.password
       );
-      const user = userCredential.user; // User object
+      const user = userCredential.user;
 
-      console.log("Guest user successfully registered:", user);
+      console.log("User successfully registered via Remind Me Later:", user.uid);
 
-      // Optionally update profile to mark as guest
-      await user.updateProfile({
-        displayName: 'Guest User',
-      });
+      // Filter valid team members (both email and role must be provided)
+      const validTeamMembers = teamMembers.filter(member => 
+        member.email.trim() && member.role.trim()
+      );
 
-      // Save guest user data to Firestore
-      await setDoc(doc(db, "users", user.uid), {
-        firstname: 'Guest',
-        lastname: 'User',
-        accountname: 'Guest Account',
-        email: guestEmail,
-        teamMembers: [], // No team members for guests
-        isGuest: true, // Mark as guest account
-        createdAt: new Date()
-      });
+      // Prepare user data for Firestore - using actual user details
+      const userData = {
+        firstname: formData.firstname.trim(),
+        lastname: formData.lastname.trim(),
+        accountname: formData.accountname.trim() || 'Default Account',
+        email: formData.email.trim(),
+        teamMembers: validTeamMembers,
+        isGuest: false, // This is a regular user account
+        createdAt: new Date(),
+        uid: user.uid,
+        registrationMethod: 'remind_later' // Optional: track how they registered
+      };
 
-      // Update registration status to success
-      setRegistrationStatus('success');
-      setIsSubmitting(false);
+      console.log('Saving user data to Firestore via Remind Me Later:', userData);
+
+      // Save user data to Firestore
+      await setDoc(doc(db, "users", user.uid), userData);
+
+      console.log('User data saved successfully via Remind Me Later');
+
+      setIsGuestSubmitting(false);
+      alert("Account created successfully! Redirecting to login...");
       
-      // Show success message
-      alert("Guest account created successfully! You'll be redirected to the login page.");
-      
-      // After a short delay, navigate to login page
       setTimeout(() => {
         navigate('/login');
       }, 1500);
       
     } catch (error) {
-      console.error("Remind later error:", error.message);
+      console.error("Remind Me Later signup error:", error);
+      let errorMessage = "Sign-up failed. Please try again.";
       
-      // Even if registration fails, still navigate to login page
-      // This ensures users can still proceed even if account creation fails
-      setIsSubmitting(false);
+      // Handle specific Firebase errors
+      if (error.code === 'auth/email-already-in-use') {
+        errorMessage = "This email is already registered. Please use a different email or try logging in.";
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage = "Please enter a valid email address.";
+      } else if (error.code === 'auth/weak-password') {
+        errorMessage = "Password is too weak. Please use a stronger password.";
+      }
       
-      // Just navigate to login page anyway
-      alert("Proceeding to login page...");
-      navigate('/login');
+      alert(errorMessage);
+      setIsGuestSubmitting(false);
     }
   };
 
-  // Render the appropriate button text based on registration status
-  const renderButtonContent = () => {
-    switch (registrationStatus) {
-      case 'submitting':
-        return <div className="spinner"></div>;
-      case 'success':
-        return "Registration Successful!";
-      case 'error':
-        return "Try Again";
-      default:
-        return "Send Invite";
+  // Navigation between steps with validation
+  const goToNextStep = () => {
+    if (step === 1 && !formData.email) {
+      alert('Please enter your email address');
+      return;
     }
+    if (step === 2 && (!formData.firstname || !formData.lastname || !formData.password)) {
+      alert('Please fill in all required fields');
+      return;
+    }
+    setStep(step + 1);
   };
 
-  // Render the appropriate button text for "Remind Me Later" based on registration status
-  const renderRemindButtonContent = () => {
-    switch (registrationStatus) {
-      case 'submitting':
-        return <div className="spinner"></div>;
-      case 'success':
-        return "Account Created!";
-      case 'error':
-        return "Try Again";
-      default:
-        return "Remind Me Later";
+  const goToPreviousStep = () => {
+    if (step > 1) {
+      setStep(step - 1);
     }
   };
 
@@ -183,7 +247,7 @@ const SignupPage = () => {
     <div className="auth-container">
       {/* Success/Error Messages */}
       {registrationStatus === 'success' && (
-        <div className="success-message">Account created successfully!</div>
+        <div className="success-message">Account created successfully! Redirecting...</div>
       )}
       {registrationStatus === 'error' && (
         <div className="error-message">Sign-up failed. Please try again.</div>
@@ -199,9 +263,9 @@ const SignupPage = () => {
           <h1 className="auth-title">Sign Up</h1>
           <p className="auth-subtitle">Provide your details to create your account.</p>
 
-          <form>
+          <form onSubmit={(e) => e.preventDefault()}>
             <div className="form-group">
-              <label htmlFor="email">Email Address</label>
+              <label htmlFor="email">Email Address *</label>
               <input
                 type="email"
                 id="email"
@@ -215,7 +279,7 @@ const SignupPage = () => {
             <button 
               type="button" 
               className="btn primary-btn" 
-              onClick={() => setStep(2)}
+              onClick={goToNextStep}
             >
               Continue
             </button>
@@ -237,9 +301,9 @@ const SignupPage = () => {
           <h1 className="auth-title">Sign Up</h1>
           <p className="auth-subtitle">Provide your details to create your account.</p>
 
-          <form>
+          <form onSubmit={(e) => e.preventDefault()}>
             <div className="form-group">
-              <label htmlFor="firstname">First Name</label>
+              <label htmlFor="firstname">First Name *</label>
               <input
                 type="text"
                 id="firstname"
@@ -251,7 +315,7 @@ const SignupPage = () => {
             </div>
 
             <div className="form-group">
-              <label htmlFor="lastname">Last Name</label>
+              <label htmlFor="lastname">Last Name *</label>
               <input
                 type="text"
                 id="lastname"
@@ -263,14 +327,15 @@ const SignupPage = () => {
             </div>
 
             <div className="form-group">
-              <label htmlFor="password">Password</label>
+              <label htmlFor="password">Password *</label>
               <input
                 type="password"
                 id="password"
-                placeholder="Create your password"
+                placeholder="Create your password (min 6 characters)"
                 value={formData.password}
                 onChange={handleFormChange}
                 required
+                minLength="6"
               />
             </div>
 
@@ -279,20 +344,28 @@ const SignupPage = () => {
               <input
                 type="text"
                 id="accountname"
-                placeholder="Enter account name"
+                placeholder="Enter account name (optional)"
                 value={formData.accountname}
                 onChange={handleFormChange}
-                required
               />
             </div>
 
-            <button 
-              type="button" 
-              className="btn primary-btn" 
-              onClick={() => setStep(3)}
-            >
-              Next
-            </button>
+            <div className="button-group">
+              <button 
+                type="button" 
+                className="btn secondary-btn" 
+                onClick={goToPreviousStep}
+              >
+                Back
+              </button>
+              <button 
+                type="button" 
+                className="btn primary-btn" 
+                onClick={goToNextStep}
+              >
+                Next
+              </button>
+            </div>
           </form>
         </div>
       </div>
@@ -301,12 +374,12 @@ const SignupPage = () => {
       <div className={`step ${step === 3 ? 'active' : ''}`}>
         <div className="auth-card">
           <h1 className="auth-title">Sign Up</h1>
-          <p className="auth-subtitle">Who else is on your team? Add them</p>
+          <p className="auth-subtitle">Who else is on your team? Add them (optional)</p>
 
-          <form>
+          <form onSubmit={(e) => e.preventDefault()}>
             <div id="team-members">
               {teamMembers.map((member, index) => (
-                <React.Fragment key={index}>
+                <div key={index} className="team-member-row">
                   <div className="form-group">
                     <input
                       type="email"
@@ -328,7 +401,16 @@ const SignupPage = () => {
                       <option value="viewer">Viewer</option>
                     </select>
                   </div>
-                </React.Fragment>
+                  {teamMembers.length > 1 && (
+                    <button 
+                      type="button" 
+                      className="btn remove-btn"
+                      onClick={() => removeTeamMember(index)}
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
               ))}
             </div>
 
@@ -337,25 +419,49 @@ const SignupPage = () => {
               className="btn secondary-btn" 
               onClick={addTeamMember}
             >
-              Add Another
+              Add Another Team Member
             </button>
+
+            <div className="button-group">
+              <button 
+                type="button" 
+                className="btn secondary-btn" 
+                onClick={goToPreviousStep}
+              >
+                Back
+              </button>
+              
+              <button 
+                type="button" 
+                className={`btn primary-btn ${registrationStatus === 'success' ? 'success-btn' : ''}`}
+                onClick={submitForm}
+                disabled={isSubmitting || registrationStatus === 'success'}
+              >
+                {isSubmitting ? (
+                  <div className="spinner"></div>
+                ) : registrationStatus === 'success' ? (
+                  "Registration Successful!"
+                ) : (
+                  "Create Account"
+                )}
+              </button>
+            </div>
+
+            <div className="divider">
+              <span>OR</span>
+            </div>
 
             <button 
               type="button" 
-              className={`btn primary-btn ${registrationStatus === 'success' ? 'success-btn' : ''}`}
-              onClick={submitForm}
-              disabled={isSubmitting || registrationStatus === 'success'}
+              className="btn text-btn"
+              onClick={remindMeLater}
+              disabled={isGuestSubmitting}
             >
-              {renderButtonContent()}
-            </button>
-
-            <button 
-              type="button" 
-              className={`btn text-btn ${registrationStatus === 'success' ? 'success-btn' : ''}`}
-              onClick={remindLater}
-              disabled={isSubmitting || registrationStatus === 'success'}
-            >
-              {renderRemindButtonContent()}
+              {isGuestSubmitting ? (
+                <div className="spinner"></div>
+              ) : (
+                "Remind Me Later"
+              )}
             </button>
           </form>
         </div>
