@@ -219,11 +219,11 @@ const LoginPage = () => {
             disabled={isSubmitting}
           >
             <img 
-              src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" 
+              src="assests/logo.png" 
               alt="Google logo" 
               className="google-logo"
             />
-            Continue with Google
+            Sign Up with Fifthab/CWG email
           </button>
 
           <p className="auth-footer">
