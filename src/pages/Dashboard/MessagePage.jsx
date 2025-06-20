@@ -1,213 +1,215 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { auth, db } from '../../firebase';
-import { collection, query, where, onSnapshot, doc, getDoc, addDoc, serverTimestamp, getDocs, orderBy } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, getDoc, addDoc, serverTimestamp, getDocs, orderBy, updateDoc } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import './MessagePage.css';
 
-// For debugging
-console.log("MessagePage component loaded");
-console.log("Firebase db instance:", db);
+// Debug logging
+const debugLog = (message, data = null) => {
+  console.log(`[MessagePage] ${message}`, data);
+};
 
 const MessagePage = () => {
-  // Authentication and basic state
   const [user] = useAuthState(auth);
-  const [activeTab, setActiveTab] = useState('all');
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [newMessage, setNewMessage] = useState('');
   const [conversations, setConversations] = useState([]);
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showNewConversation, setShowNewConversation] = useState(false);
-
-  // Search functionality state
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
-  const [selectedUser, setSelectedUser] = useState(null);
-  const [usersLoading, setUsersLoading] = useState(true);
+  const [isSending, setIsSending] = useState(false);
+  
+  const messagesEndRef = useRef(null);
+  const chatContainerRef = useRef(null);
 
-  // Fetch all users for search
+  // Auto-scroll to bottom when new messages arrive
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  // Fetch all users once
   useEffect(() => {
     if (!user) return;
-    
-    setUsersLoading(true);
-    console.log("Fetching users for current user:", user.uid);
     
     const fetchUsers = async () => {
       try {
         const usersRef = collection(db, "users");
         const usersSnapshot = await getDocs(usersRef);
         
-        console.log("Raw users snapshot size:", usersSnapshot.size);
+        const allUsersData = usersSnapshot.docs
+          .map(doc => {
+            const userData = doc.data();
+            let displayName = 'Unknown User';
+            
+            if (userData.firstname || userData.lastname) {
+              displayName = `${userData.firstname || ''} ${userData.lastname || ''}`.trim();
+            } else if (userData.displayName) {
+              displayName = userData.displayName;
+            } else if (userData.email) {
+              displayName = userData.email.split('@')[0];
+            }
+            
+            return {
+              id: doc.id,
+              uid: userData.uid || doc.id,
+              displayName,
+              email: userData.email || '',
+              photoURL: userData.photoURL || 'https://via.placeholder.com/40',
+              firstname: userData.firstname || '',
+              lastname: userData.lastname || '',
+              ...userData
+            };
+          })
+          .filter(u => (u.uid || u.id) !== user.uid);
         
-        const allUsersData = usersSnapshot.docs.map(doc => {
-          const userData = doc.data();
-          console.log("Raw user data:", userData);
-          
-          // Create display name from firstname and lastname, fallback to other options
-          let displayName = 'Unknown User';
-          if (userData.firstname || userData.lastname) {
-            displayName = `${userData.firstname || ''} ${userData.lastname || ''}`.trim();
-          } else if (userData.displayName) {
-            displayName = userData.displayName;
-          } else if (userData.email) {
-            displayName = userData.email.split('@')[0]; // Use email prefix as fallback
-          }
-          
-          return {
-            id: doc.id,
-            uid: userData.uid || doc.id, // Use doc.id if uid is not present
-            displayName: displayName,
-            email: userData.email || '',
-            photoURL: userData.photoURL || 'https://via.placeholder.com/40',
-            firstname: userData.firstname || '',
-            lastname: userData.lastname || '',
-            accountname: userData.accountname || '',
-            isGuest: userData.isGuest || false,
-            ...userData // Include all other fields
-          };
-        });
-        
-        console.log("Processed users data:", allUsersData);
-        
-        // Filter out current user
-        const filteredUsers = allUsersData.filter(u => {
-          const userId = u.uid || u.id;
-          return userId !== user.uid;
-        });
-        
-        console.log("Filtered users (excluding current user):", filteredUsers);
-        
-        if (filteredUsers.length > 0) {
-          setAllUsers(filteredUsers);
-          setSearchResults(filteredUsers);
-          console.log("Users set successfully, count:", filteredUsers.length);
-        } else {
-          console.log("No other users found in database");
-          setAllUsers([]);
-          setSearchResults([]);
-        }
+        setAllUsers(allUsersData);
+        setSearchResults(allUsersData);
       } catch (error) {
         console.error("Error fetching users:", error);
-        // Set empty arrays on error
         setAllUsers([]);
         setSearchResults([]);
-      } finally {
-        setUsersLoading(false);
       }
     };
     
     fetchUsers();
   }, [user]);
 
-  // Fetch conversations - get unique conversations from messages
+  // Real-time conversations listener - Fixed to work with allUsers dependency
   useEffect(() => {
-    if (!user) return;
+    if (!user || allUsers.length === 0) return;
 
     setLoading(true);
-    console.log("Fetching conversations for user:", user.uid);
     
-    try {
-      const messagesRef = collection(db, 'messages');
-      const q = query(
-        messagesRef, 
-        where('participants', 'array-contains', user.uid),
-        orderBy('timestamp', 'desc')
-      );
+    const messagesRef = collection(db, 'messages');
+    const q = query(
+      messagesRef, 
+      where('participants', 'array-contains', user.uid),
+      orderBy('timestamp', 'desc')
+    );
+    
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const conversationMap = new Map();
       
-      const unsubscribe = onSnapshot(q, (querySnapshot) => {
-        console.log("Messages snapshot received:", querySnapshot.size, "documents");
+      querySnapshot.docs.forEach(doc => {
+        const message = { id: doc.id, ...doc.data() };
+        const participants = message.participants || [];
         
-        // Group messages by participants to create conversations
-        const conversationMap = new Map();
+        // Skip if no participants or invalid data
+        if (!participants || participants.length < 2) return;
         
-        querySnapshot.docs.forEach(doc => {
-          const message = { id: doc.id, ...doc.data() };
-          const participants = message.participants || [];
+        const conversationKey = [...participants].sort().join('_');
+        
+        if (!conversationMap.has(conversationKey)) {
+          const otherParticipantId = participants.find(id => id !== user.uid);
+          const otherUser = allUsers.find(u => (u.uid || u.id) === otherParticipantId);
           
-          // Create a conversation key from sorted participants
-          const conversationKey = participants.sort().join('_');
-          
-          if (!conversationMap.has(conversationKey)) {
-            // Find the other participant
-            const otherParticipantId = participants.find(id => id !== user.uid);
-            const otherUser = allUsers.find(u => (u.uid || u.id) === otherParticipantId);
-            
-            conversationMap.set(conversationKey, {
-              id: conversationKey,
-              participants: participants,
-              otherParticipant: otherUser || {
-                id: otherParticipantId,
-                displayName: 'Unknown User',
-                photoURL: 'https://via.placeholder.com/40'
-              },
-              lastMessage: message.content,
-              lastMessageTime: message.timestamp,
-              messages: [message]
-            });
-          } else {
-            // Update if this message is more recent
-            const conversation = conversationMap.get(conversationKey);
-            if (!conversation.lastMessageTime || 
-                (message.timestamp && message.timestamp > conversation.lastMessageTime)) {
-              conversation.lastMessage = message.content;
-              conversation.lastMessageTime = message.timestamp;
-            }
-            conversation.messages.push(message);
+          conversationMap.set(conversationKey, {
+            id: conversationKey,
+            participants: [...participants].sort(),
+            otherParticipant: otherUser || {
+              id: otherParticipantId,
+              displayName: 'Unknown User',
+              photoURL: 'https://via.placeholder.com/40'
+            },
+            lastMessage: message.content,
+            lastMessageTime: message.timestamp,
+            unreadCount: message.senderId !== user.uid && !message.read ? 1 : 0
+          });
+        } else {
+          const conversation = conversationMap.get(conversationKey);
+          if (!conversation.lastMessageTime || 
+              (message.timestamp && message.timestamp.toMillis() > conversation.lastMessageTime.toMillis())) {
+            conversation.lastMessage = message.content;
+            conversation.lastMessageTime = message.timestamp;
           }
-        });
-        
-        const conversationsData = Array.from(conversationMap.values());
-        console.log("Conversations loaded:", conversationsData.length);
-        setConversations(conversationsData);
-        setLoading(false);
-      }, (error) => {
-        console.error("Error fetching conversations:", error);
-        setLoading(false);
+          
+          if (message.senderId !== user.uid && !message.read) {
+            conversation.unreadCount = (conversation.unreadCount || 0) + 1;
+          }
+        }
       });
-
-      return () => unsubscribe();
-    } catch (error) {
-      console.error("Error setting up conversations listener:", error);
+      
+      const conversationsData = Array.from(conversationMap.values())
+        .sort((a, b) => {
+          if (!a.lastMessageTime) return 1;
+          if (!b.lastMessageTime) return -1;
+          return b.lastMessageTime.toMillis() - a.lastMessageTime.toMillis();
+        });
+      
+      setConversations(conversationsData);
       setLoading(false);
-    }
+    }, (error) => {
+      console.error("Error in conversations listener:", error);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
   }, [user, allUsers]);
 
-  // Fetch messages for selected conversation
+  // Real-time messages listener - Fixed to properly handle message updates
   useEffect(() => {
     if (!selectedConversation || !user) return;
-
-    console.log("Fetching messages for conversation:", selectedConversation.id);
     
-    try {
-      const messagesRef = collection(db, 'messages');
-      const q = query(
-        messagesRef,
-        where('participants', 'array-contains', user.uid),
-        where('participants', 'array-contains', selectedConversation.participants.find(id => id !== user.uid)),
-        orderBy('timestamp', 'asc') // Order by ascending to show chronological order
-      );
+    debugLog("Setting up messages listener", selectedConversation.id);
+    
+    const messagesRef = collection(db, 'messages');
+    const q = query(
+      messagesRef,
+      where('participants', 'array-contains', user.uid),
+      orderBy('timestamp', 'asc')
+    );
+    
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      debugLog("Messages snapshot received", { size: querySnapshot.size });
       
-      const unsubscribe = onSnapshot(q, (querySnapshot) => {
-        console.log("Messages snapshot received:", querySnapshot.size, "documents");
-        const messagesData = querySnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-        
-        console.log("Messages loaded:", messagesData.length);
-        setMessages(messagesData);
-      }, (error) => {
-        console.error("Error fetching messages:", error);
+      // Filter messages for this specific conversation
+      const conversationMessages = querySnapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .filter(message => {
+          const messageParticipants = [...(message.participants || [])].sort();
+          const conversationParticipants = [...selectedConversation.participants].sort();
+          return JSON.stringify(messageParticipants) === JSON.stringify(conversationParticipants);
+        })
+        .sort((a, b) => {
+          if (!a.timestamp) return 1;
+          if (!b.timestamp) return -1;
+          return a.timestamp.toMillis() - b.timestamp.toMillis();
+        });
+      
+      debugLog("Filtered conversation messages", { count: conversationMessages.length });
+      
+      // Set messages directly instead of complex optimistic update logic
+      setMessages(conversationMessages);
+      
+      // Mark messages as read (non-blocking)
+      conversationMessages.forEach(async (message) => {
+        if (message.senderId !== user.uid && !message.read) {
+          try {
+            await updateDoc(doc(db, 'messages', message.id), { read: true });
+          } catch (error) {
+            console.error("Error marking message as read:", error);
+          }
+        }
       });
+    }, (error) => {
+      console.error("Error in messages listener:", error);
+      debugLog("Messages listener error", error);
+    });
 
-      return () => unsubscribe();
-    } catch (error) {
-      console.error("Error setting up messages listener:", error);
-    }
+    return () => {
+      debugLog("Cleaning up messages listener");
+      unsubscribe();
+    };
   }, [selectedConversation, user]);
 
-  // Handle search input - search by display name, first name, last name, or email
+  // Search functionality
   useEffect(() => {
     if (!allUsers.length) return;
     
@@ -222,134 +224,125 @@ const MessagePage = () => {
       const firstName = user.firstname?.toLowerCase() || '';
       const lastName = user.lastname?.toLowerCase() || '';
       const email = user.email?.toLowerCase() || '';
-      const accountName = user.accountname?.toLowerCase() || '';
       
       return displayName.includes(lowerQuery) ||
              firstName.includes(lowerQuery) ||
              lastName.includes(lowerQuery) ||
-             email.includes(lowerQuery) ||
-             accountName.includes(lowerQuery);
+             email.includes(lowerQuery);
     });
     
-    console.log("Search results for query:", searchQuery, "Results:", results);
     setSearchResults(results);
   }, [searchQuery, allUsers]);
-
-  const handleSearchChange = (e) => {
-    setSearchQuery(e.target.value);
-  };
 
   // Create or get existing conversation
   const createOrGetConversation = async (otherUser) => {
     try {
-      console.log("Creating/getting conversation with:", otherUser);
-      
-      // Check if conversation already exists by looking at messages
-      const messagesRef = collection(db, 'messages');
-      const q = query(
-        messagesRef,
-        where('participants', 'array-contains', user.uid)
-      );
-      
-      const snapshot = await getDocs(q);
-      let existingConversation = null;
-      
-      snapshot.forEach(doc => {
-        const data = doc.data();
-        if (data.participants.includes(otherUser.uid || otherUser.id)) {
-          const participants = data.participants;
-          const conversationKey = participants.sort().join('_');
-          
-          existingConversation = {
-            id: conversationKey,
-            participants: participants,
-            otherParticipant: otherUser
-          };
-        }
+      const sortedParticipants = [user.uid, otherUser.uid || otherUser.id].sort();
+      const existingConversation = conversations.find(conv => {
+        const convParticipants = [...conv.participants].sort();
+        return JSON.stringify(convParticipants) === JSON.stringify(sortedParticipants);
       });
       
       if (existingConversation) {
-        console.log("Found existing conversation:", existingConversation.id);
         setSelectedConversation(existingConversation);
         setShowNewConversation(false);
         return;
       }
       
-      // Create new conversation object (no need to store in Firebase)
       const newConversation = {
-        id: [user.uid, otherUser.uid || otherUser.id].sort().join('_'),
-        participants: [user.uid, otherUser.uid || otherUser.id],
+        id: sortedParticipants.join('_'),
+        participants: sortedParticipants,
         otherParticipant: otherUser
       };
       
       setSelectedConversation(newConversation);
       setShowNewConversation(false);
-      console.log("New conversation created:", newConversation.id);
     } catch (error) {
       console.error("Error creating conversation:", error);
-      alert("Failed to create conversation: " + error.message);
     }
   };
 
-  // Handle sending a message
+  // Simplified message sending without complex optimistic updates
   const handleSendMessage = async () => {
-    console.log("handleSendMessage called", { newMessage, selectedConversation, user });
+    debugLog("handleSendMessage called", { newMessage, selectedConversation: selectedConversation?.id });
     
-    if (!newMessage.trim()) {
-      console.warn("Cannot send empty message");
+    if (!newMessage.trim() || isSending || !user || !selectedConversation) {
+      debugLog("Cannot send message - validation failed", { 
+        hasMessage: !!newMessage.trim(), 
+        isSending, 
+        hasUser: !!user, 
+        hasConversation: !!selectedConversation 
+      });
       return;
     }
+
+    setIsSending(true);
+    const messageContent = newMessage.trim();
     
-    if (!user || !selectedConversation) {
-      console.error("No authenticated user or selected conversation");
-      return;
-    }
+    // Clear input immediately for better UX
+    setNewMessage('');
+    debugLog("Input cleared, preparing message", { messageContent });
 
     try {
-      console.log("Preparing to send message...");
-      
-      // Get current user info from Firestore to get the correct display name
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      // Get current user info
       let senderName = 'Anonymous User';
+      let senderPhoto = 'https://via.placeholder.com/40';
       
-      if (userDoc.exists()) {
-        const userData = userDoc.data();
-        if (userData.firstname || userData.lastname) {
-          senderName = `${userData.firstname || ''} ${userData.lastname || ''}`.trim();
-        } else if (userData.displayName) {
-          senderName = userData.displayName;
-        } else if (userData.email) {
-          senderName = userData.email.split('@')[0];
+      try {
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          if (userData.firstname || userData.lastname) {
+            senderName = `${userData.firstname || ''} ${userData.lastname || ''}`.trim();
+          } else if (userData.displayName) {
+            senderName = userData.displayName;
+          } else if (userData.email) {
+            senderName = userData.email.split('@')[0];
+          }
+          
+          if (userData.photoURL) {
+            senderPhoto = userData.photoURL;
+          }
         }
+      } catch (userError) {
+        console.error("Error fetching user data:", userError);
+        // Use fallback values
       }
-      
+
+      debugLog("User info retrieved", { senderName });
+
+      // Prepare message data for Firebase
       const messageData = {
         conversationId: selectedConversation.id,
-        content: newMessage,
+        content: messageContent,
         senderId: user.uid,
         senderName: senderName,
-        senderPhoto: user.photoURL || 'https://via.placeholder.com/40',
-        participants: selectedConversation.participants, // Required by your security rules
+        senderPhoto: senderPhoto,
+        participants: [...selectedConversation.participants].sort(),
         timestamp: serverTimestamp(),
-        read: false
+        read: false,
+        type: 'direct' // Add type to distinguish from group messages
       };
 
-      console.log("Message data prepared:", messageData);
-      
-      // Add message to messages collection
-      const messageRef = await addDoc(collection(db, 'messages'), messageData);
-      console.log("SUCCESS: Message sent with ID:", messageRef.id);
+      debugLog("Sending to Firebase", messageData);
 
-      setNewMessage('');
-      console.log("Message input cleared");
+      // Send to Firebase
+      const docRef = await addDoc(collection(db, 'messages'), messageData);
+      debugLog("Message sent successfully", { messageId: docRef.id });
       
     } catch (error) {
       console.error("Error sending message:", error);
+      debugLog("Failed to send message", error);
+      
+      // Restore input on error
+      setNewMessage(messageContent);
       alert("Failed to send message: " + error.message);
+    } finally {
+      setIsSending(false);
+      debugLog("Send process completed");
     }
   };
 
-  // Get other participant info
   const getOtherParticipant = (conversation) => {
     if (conversation.otherParticipant) {
       return conversation.otherParticipant;
@@ -380,11 +373,7 @@ const MessagePage = () => {
           {/* Sidebar */}
           <div className="message-sidebar">
             <div className="messages-header">
-              <h2>Direct Messages</h2>
-              <p className="header-subtitle">Your conversations</p>
-            </div>
-            
-            <div className="message-tabs">
+              <h2>Messages</h2>
               <button 
                 className="new-conversation-btn"
                 onClick={() => {
@@ -392,7 +381,7 @@ const MessagePage = () => {
                   setSelectedConversation(null);
                 }}
               >
-                New Message
+                + New
               </button>
             </div>
 
@@ -400,7 +389,6 @@ const MessagePage = () => {
               {conversations.length > 0 ? (
                 conversations.map(conversation => {
                   const otherParticipant = getOtherParticipant(conversation);
-
                   return (
                     <div 
                       key={conversation.id}
@@ -416,19 +404,22 @@ const MessagePage = () => {
                           <div className="message-header">
                             <span className="sender">{otherParticipant.displayName}</span>
                             <span className="time">
-                              {conversation.lastMessageTime?.toDate?.().toLocaleTimeString() || 'Just now'}
+                              {conversation.lastMessageTime?.toDate?.().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) || 'Now'}
                             </span>
                           </div>
                           <div className="message-text">
-                            {conversation.lastMessage?.substring(0, 30)}{conversation.lastMessage?.length > 30 ? '...' : ''}
+                            {conversation.lastMessage?.substring(0, 40)}{conversation.lastMessage?.length > 40 ? '...' : ''}
                           </div>
+                          {conversation.unreadCount > 0 && (
+                            <div className="unread-badge">{conversation.unreadCount}</div>
+                          )}
                         </div>
                       </div>
                     </div>
                   );
                 })
               ) : (
-                <div className="no-messages">No conversations yet. Start your first chat!</div>
+                <div className="no-messages">No conversations yet</div>
               )}
             </div>
           </div>
@@ -438,21 +429,21 @@ const MessagePage = () => {
             {showNewConversation ? (
               <div className="new-conversation-container">
                 <div className="new-conversation-header">
-                  <h3>Start New Conversation</h3>
+                  <h3>New Message</h3>
                   <button 
                     className="close-button"
                     onClick={() => setShowNewConversation(false)}
                   >
-                    &times;
+                    ×
                   </button>
                 </div>
                 
                 <div className="user-search">
                   <input
                     type="text"
-                    placeholder="Search by name, email, or department..."
+                    placeholder="Search users..."
                     value={searchQuery}
-                    onChange={handleSearchChange}
+                    onChange={(e) => setSearchQuery(e.target.value)}
                     style={{
                       width: "100%",
                       padding: "12px",
@@ -464,83 +455,48 @@ const MessagePage = () => {
                   />
                   
                   <div className="user-list" style={{maxHeight: "400px", overflowY: "auto"}}>
-                    {usersLoading ? (
-                      <div style={{padding: "20px", textAlign: "center", color: "#666"}}>
-                        Loading users...
-                      </div>
-                    ) : searchResults.length > 0 ? (
-                      <div>
-                        <div style={{padding: "10px", fontSize: "14px", color: "#666", borderBottom: "1px solid #eee"}}>
-                          Found {searchResults.length} user{searchResults.length !== 1 ? 's' : ''}
-                        </div>
-                        {searchResults.map(userItem => (
-                          <div
-                            key={userItem.id}
-                            className="user-item"
-                            onClick={() => {
-                              console.log("Selected user for conversation:", userItem);
-                              createOrGetConversation(userItem);
-                            }}
+                    {searchResults.length > 0 ? (
+                      searchResults.map(userItem => (
+                        <div
+                          key={userItem.id}
+                          className="user-item"
+                          onClick={() => createOrGetConversation(userItem)}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            padding: "12px",
+                            cursor: "pointer",
+                            borderBottom: "1px solid #f0f0f0",
+                            transition: "background-color 0.2s"
+                          }}
+                          onMouseEnter={(e) => e.target.style.backgroundColor = "#f8f9fa"}
+                          onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
+                        >
+                          <img 
+                            src={userItem.photoURL} 
+                            alt={userItem.displayName} 
+                            className="avatar"
                             style={{
-                              display: "flex",
-                              alignItems: "center",
-                              padding: "12px",
-                              cursor: "pointer",
-                              borderBottom: "1px solid #f0f0f0",
-                              transition: "background-color 0.2s",
-                              ":hover": {
-                                backgroundColor: "#f8f9fa"
-                              }
+                              width: "40px",
+                              height: "40px",
+                              borderRadius: "50%",
+                              marginRight: "12px",
+                              objectFit: "cover"
                             }}
-                            onMouseEnter={(e) => e.target.style.backgroundColor = "#f8f9fa"}
-                            onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
-                          >
-                            <img 
-                              src={userItem.photoURL || 'https://via.placeholder.com/40'} 
-                              alt={userItem.displayName} 
-                              className="avatar"
-                              style={{
-                                width: "40px",
-                                height: "40px",
-                                borderRadius: "50%",
-                                marginRight: "12px",
-                                objectFit: "cover"
-                              }}
-                            />
-                            <div style={{flex: 1}}>
-                              <div style={{fontWeight: "600", color: "#333", marginBottom: "2px"}}>
-                                {userItem.displayName}
-                              </div>
-                              <div style={{fontSize: "13px", color: "#666"}}>
-                                {userItem.email}
-                              </div>
-                              {userItem.accountname && (
-                                <div style={{fontSize: "12px", color: "#888", marginTop: "1px"}}>
-                                  {userItem.accountname}
-                                </div>
-                              )}
+                          />
+                          <div style={{flex: 1}}>
+                            <div style={{fontWeight: "600", color: "#333"}}>
+                              {userItem.displayName}
                             </div>
-                            {userItem.isGuest && (
-                              <div style={{
-                                fontSize: "11px",
-                                color: "#999",
-                                backgroundColor: "#f0f0f0",
-                                padding: "2px 6px",
-                                borderRadius: "10px"
-                              }}>
-                                Guest
-                              </div>
-                            )}
+                            <div style={{fontSize: "13px", color: "#666"}}>
+                              {userItem.email}
+                            </div>
                           </div>
-                        ))}
-                      </div>
-                    ) : searchQuery.trim() ? (
-                      <div style={{padding: "20px", textAlign: "center", color: "#666"}}>
-                        No users found matching "{searchQuery}"
-                      </div>
+                        </div>
+                      ))
                     ) : (
                       <div style={{padding: "20px", textAlign: "center", color: "#666"}}>
-                        {allUsers.length === 0 ? "No other users found in the system" : "Type to search users"}
+                        {searchQuery.trim() ? `No users found matching "${searchQuery}"` : "Type to search users"}
                       </div>
                     )}
                   </div>
@@ -561,11 +517,9 @@ const MessagePage = () => {
                           />
                           <div>
                             <span className="sender">{otherParticipant.displayName}</span>
-                            {otherParticipant.email && (
-                              <div style={{fontSize: "12px", color: "#666"}}>
-                                {otherParticipant.email}
-                              </div>
-                            )}
+                            <div style={{fontSize: "12px", color: "#666"}}>
+                              {otherParticipant.email}
+                            </div>
                           </div>
                         </>
                       );
@@ -573,14 +527,18 @@ const MessagePage = () => {
                   </div>
                 </div>
                 
-                <div className="chat-messages" style={{
-                  flex: 1,
-                  overflowY: 'auto',
-                  padding: '20px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '15px'
-                }}>
+                <div 
+                  ref={chatContainerRef}
+                  className="chat-messages" 
+                  style={{
+                    flex: 1,
+                    overflowY: 'auto',
+                    padding: '20px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '15px'
+                  }}
+                >
                   {messages.length === 0 ? (
                     <div style={{
                       textAlign: 'center',
@@ -588,7 +546,7 @@ const MessagePage = () => {
                       padding: '40px',
                       fontSize: '14px'
                     }}>
-                      Start your conversation by sending a message below
+                      Start your conversation
                     </div>
                   ) : (
                     messages.map(message => {
@@ -605,7 +563,7 @@ const MessagePage = () => {
                           }}
                         >
                           <img 
-                            src={message.senderPhoto || 'https://via.placeholder.com/32'} 
+                            src={message.senderPhoto || 'https://via.placeholder.com/40'} 
                             alt={message.senderName}
                             style={{
                               width: '32px',
@@ -621,13 +579,6 @@ const MessagePage = () => {
                             alignItems: isCurrentUser ? 'flex-end' : 'flex-start'
                           }}>
                             <div style={{
-                              fontSize: '0.8em',
-                              color: '#666',
-                              marginBottom: '4px'
-                            }}>
-                              {message.senderName}
-                            </div>
-                            <div style={{
                               backgroundColor: isCurrentUser ? '#007bff' : '#f1f1f1',
                               color: isCurrentUser ? 'white' : 'black',
                               padding: '10px 15px',
@@ -641,13 +592,14 @@ const MessagePage = () => {
                               color: '#999',
                               marginTop: '4px'
                             }}>
-                              {message.timestamp?.toDate?.().toLocaleTimeString() || 'Just now'}
+                              {message.timestamp?.toDate?.().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) || 'Now'}
                             </div>
                           </div>
                         </div>
                       );
                     })
                   )}
+                  <div ref={messagesEndRef} />
                 </div>
                 
                 <div className="message-composer" style={{
@@ -661,7 +613,8 @@ const MessagePage = () => {
                     placeholder="Type a message..." 
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                    onKeyPress={(e) => e.key === 'Enter' && !isSending && handleSendMessage()}
+                    disabled={isSending}
                     style={{
                       flex: 1,
                       padding: '12px',
@@ -672,28 +625,28 @@ const MessagePage = () => {
                   />
                   <button 
                     className="send-button" 
-                    disabled={!newMessage.trim()}
+                    disabled={!newMessage.trim() || isSending}
                     onClick={handleSendMessage}
                     style={{
                       padding: '12px 24px',
                       borderRadius: '20px',
-                      backgroundColor: newMessage.trim() ? '#007bff' : '#ccc',
+                      backgroundColor: (newMessage.trim() && !isSending) ? '#007bff' : '#ccc',
                       color: 'white',
                       border: 'none',
-                      cursor: newMessage.trim() ? 'pointer' : 'not-allowed',
+                      cursor: (newMessage.trim() && !isSending) ? 'pointer' : 'not-allowed',
                       fontSize: '14px',
                       fontWeight: '500'
                     }}
                   >
-                    Send
+                    {isSending ? 'Sending...' : 'Send'}
                   </button>
                 </div>
               </>
             ) : (
               <div className="empty-state">
                 <div className="empty-state-icon">💬</div>
-                <h3>Direct Messages</h3>
-                <p>Select a conversation to start chatting or create a new message</p>
+                <h3>Select a conversation</h3>
+                <p>Choose a conversation to start chatting</p>
                 <button 
                   className="start-conversation-btn"
                   onClick={() => setShowNewConversation(true)}
@@ -708,7 +661,7 @@ const MessagePage = () => {
                     fontWeight: "500"
                   }}
                 >
-                  Start New Chat
+                  New Message
                 </button>
               </div>
             )}

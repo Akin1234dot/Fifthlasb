@@ -79,8 +79,8 @@ const LoginPage = () => {
     setTouched(prev => ({ ...prev, [fieldName]: true }));
     
     const error = fieldName === 'email' 
-      ? validateEmail(formData.email) 
-      : validatePassword(formData.password);
+      ? validateEmail(formData[fieldName]) 
+      : validatePassword(formData[fieldName]);
     setErrors(prev => ({ ...prev, [fieldName]: error }));
   };
 
@@ -219,11 +219,11 @@ const LoginPage = () => {
             disabled={isSubmitting}
           >
             <img 
-              src="assests/logo.png" 
+              src="assets/google-logo.png"  // Fixed path (assuming standard location)
               alt="Google logo" 
               className="google-logo"
             />
-            Sign Up with Fifthab/CWG email
+            Sign Up/In with Fifthab/CWG email
           </button>
 
           <p className="auth-footer">

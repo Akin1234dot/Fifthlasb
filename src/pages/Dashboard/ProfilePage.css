@@ -6,16 +6,42 @@
     border-radius: 8px;
     box-shadow: 0 4px 8px rgba(0, 0, 139, 0.1);
     /* Dark blue shadow */
+    position: relative;
+}
+
+.profile-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+    border-bottom: 2px solid #1976d2;
+    padding-bottom: 10px;
 }
 
 .profile-page h1 {
     color: #1a237e;
     /* Dark blue */
     text-align: center;
-    margin-bottom: 25px;
-    border-bottom: 2px solid #1976d2;
-    /* Medium blue */
-    padding-bottom: 10px;
+    margin: 0;
+    flex-grow: 1;
+}
+
+.exit-button {
+    background: none;
+    border: none;
+    color: #1a237e;
+    cursor: pointer;
+    padding: 5px;
+    border-radius: 50%;
+    transition: background-color 0.3s;
+}
+
+.exit-button:hover {
+    background-color: #f5f9ff;
+}
+
+.profile-content {
+    margin-top: 20px;
 }
 
 .profile-page p {
@@ -52,14 +78,7 @@
     /* Dark blue accent */
 }
 
-.profile-page p:last-child {
-    color: #666;
-    font-style: italic;
-    text-align: center;
-    background-color: transparent;
-    border-left: none;
-}  
-/* Upload Progress Circle */
+/* Keep all your existing additional styles below */
 .upload-progress {
     width: 40px;
     height: 40px;
@@ -117,6 +136,7 @@
 .change-photo-btn:hover {
     background: rgba(0, 0, 0, 0.7);
 }
+
 /* Message bubbles */
 .message-bubble {
     max-width: 70%;

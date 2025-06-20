@@ -1,11 +1,75 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { getAuth, updateProfile } from 'firebase/auth';
 import './Sidebar.css';
 
 const Sidebar = () => {
+  // State declarations
   const location = useLocation();
   const currentPath = location.pathname;
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [profilePic, setProfilePic] = useState(null);
+  const [uploading, setUploading] = useState(false);
+
+  // Firebase initialization
+  const auth = getAuth();
+  const storage = getStorage();
+  const user = auth.currentUser;
+
+  // Function to toggle sidebar for mobile view
+  const toggleSidebar = () => {
+    setIsMobileOpen(!isMobileOpen);
+  };
+
+  // Handle profile picture upload
+  const handleFileChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file || !user) return;
+
+    setUploading(true);
+    
+    try {
+      // Create reference to user's profile picture in storage
+      const storageRef = ref(storage, `profilePictures/${user.uid}`);
+      
+      // Upload the file
+      await uploadBytes(storageRef, file);
+      
+      // Get the download URL
+      const downloadURL = await getDownloadURL(storageRef);
+      
+      // Update the profile picture in state
+      setProfilePic(downloadURL);
+      
+      // Update the user's photoURL in Firebase Auth
+      await updateProfile(user, { photoURL: downloadURL });
+      
+    } catch (error) {
+      console.error("Error uploading profile picture:", error);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // Load user's profile picture on component mount
+  useEffect(() => {
+    if (user) {
+      if (user.photoURL) {
+        setProfilePic(user.photoURL);
+      } else {
+        // Try to get from storage if not in auth
+        const storageRef = ref(storage, `profilePictures/${user.uid}`);
+        getDownloadURL(storageRef)
+          .then((url) => {
+            setProfilePic(url);
+          })
+          .catch(() => {
+            setProfilePic('/default-profile.png');
+          });
+      }
+    }
+  }, [user, storage]);
 
   // Close sidebar when route changes (for mobile)
   useEffect(() => {
@@ -23,7 +87,6 @@ const Sidebar = () => {
 
     if (isMobileOpen) {
       document.addEventListener('mousedown', handleClickOutside);
-      // Prevent body scrolling when sidebar is open
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = '';
@@ -35,19 +98,14 @@ const Sidebar = () => {
     };
   }, [isMobileOpen]);
 
-  // Toggle sidebar for mobile view
-  const toggleSidebar = () => {
-    setIsMobileOpen(!isMobileOpen);
-  };
-
   return (
     <>
-      {/* Mobile toggle button - Add this to your main layout */}
+      {/* Mobile toggle button */}
       <button 
         className="mobile-menu-toggle" 
         onClick={toggleSidebar}
         style={{
-          display: 'none', // Hide by default, show in mobile via CSS
+          display: 'none',
           position: 'fixed',
           top: '15px',
           left: '15px',
@@ -68,14 +126,14 @@ const Sidebar = () => {
       {/* Backdrop for mobile */}
       <div 
         className={`backdrop ${isMobileOpen ? 'show' : ''}`} 
-        onClick={() => setIsMobileOpen(false)}
+        onClick={toggleSidebar}
       ></div>
 
       {/* Sidebar */}
       <div className={`sidebar ${isMobileOpen ? 'mobile-open' : ''}`}>
         <button 
           className="close-sidebar" 
-          onClick={() => setIsMobileOpen(false)}
+          onClick={toggleSidebar}
           aria-label="Close menu"
         >
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -86,11 +144,6 @@ const Sidebar = () => {
 
         <div className="sidebar-header">
           <div className="app-logo">
-            {/* <div className="logo-icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="#ffffff" stroke="#ffffff">
-                <rect width="18" height="18" x="3" y="3" rx="2" />
-              </svg>
-            </div> */}
             <span className="logo-text">Five-A-Side</span>
           </div>
         </div>
@@ -190,6 +243,31 @@ const Sidebar = () => {
             </div>
             <span className="member-name">Demilade</span>
             <span className="online-indicator"></span>
+          </div>
+        </div>
+
+        {/* User Profile Section */}
+        <div className="user-profile">
+          <div className="profile-picture-container">
+            <label htmlFor="profile-upload">
+              <img 
+                src={profilePic || '/default-profile.png'} 
+                alt="Profile" 
+                className="profile-picture"
+              />
+              {uploading && <div className="upload-spinner">Uploading...</div>}
+            </label>
+            <input
+              id="profile-upload"
+              type="file"
+              accept="image/*"
+              onChange={handleFileChange}
+              style={{ display: 'none' }}
+            />
+          </div>
+          <div className="user-info">
+            <span className="user-name">{user?.displayName || 'User'}</span>
+            <span className="user-status">Online</span>
           </div>
         </div>
       </div>
